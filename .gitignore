@@ -1,0 +1,14 @@
+#build
+build/
+*.o
+*.obj
+*.dll
+*.a
+*.lib
+*.so
+
+#virtual environments
+.venv/
+
+#logs
+*.csv
