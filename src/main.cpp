@@ -3,6 +3,7 @@
 #include <fstream>
 #include <cmath>
 #include "rocket_physics.hpp"
+#include "engine_physics.hpp"
 #include "integrator_rk4.hpp"
 #include "PID.hpp"
 
