@@ -5,7 +5,7 @@
 
 //PIDController::PIDController(double k_p, double k_i, double k_d) : k_p(k_p), k_i(k_i), k_d(k_d) {}
 
-void PIDController::initializePID(const Eigen::Matrix<double, 6, 1> state, double target_angle) {
+void PIDController::initializePID(const Eigen::Matrix<double, 13, 1> state, double target_angle) {
     I_prev = 0;
     theta_prev = state(2);
     error_prev = target_angle - state(2);
@@ -30,7 +30,7 @@ double PIDController::calculate_integral(double dt, Eigen::Vector2d error) const
     return I_prev + ((error(0) + error(1)) * 0.5 * dt);
 }
 
-double PIDController::calculate_derivative(Eigen::Matrix<double, 6, 1> state) const {
+double PIDController::calculate_derivative(Eigen::Matrix<double, 13, 1> state) const {
     return -1.0 * state(5);
 }
 
@@ -55,7 +55,7 @@ double PIDController::calculate_correction(const Engine& engine, double error, d
     return output;
 }
 
-double PIDController::step(double dt, const Eigen::Matrix<double, 6, 1> state, const Engine& engine, double target_angle) {
+double PIDController::step(double dt, const Eigen::Matrix<double, 13, 1> state, const Engine& engine, double target_angle) {
 
     Eigen::Vector2d error;
     error << calculate_error(state(2), target_angle) , error_prev;  

@@ -3,17 +3,21 @@
     "tasks": [
         {
             "type": "cppbuild",
-            "label": "Build S.T.A.R.S.",
+            "label": "Build FJTR",
             "command": "C:\\MinGW\\bin\\g++.exe",
             "args": [
                 "-fdiagnostics-color=always",
                 "-g",
                 "${workspaceFolder}/src/*.cpp",
                 "-I", "${workspaceFolder}/include",
-                "-o", "${workspaceFolder}/build/STARS"
+                "-o", "${workspaceFolder}/build/FJTR"
             ],
             "options": {
-                "cwd": "${workspaceFolder}"
+                "cwd": "${workspaceFolder}",
+                "shell": {
+                    "executable": "cmd.exe",
+                    "args": ["/d", "/c"]
+                }
             },
             "problemMatcher": [
                 "$gcc"

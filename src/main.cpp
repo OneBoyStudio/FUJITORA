@@ -12,36 +12,78 @@ int main() {
 
     double deltatime = 0.01;
 
-    Rocket rocket(2000.0, 12.0, 24000.0, 6.0);
+    Rocket rocket(30000.0, 40.0);
 
-    Engine engine(0, 26000.0);
+    Eigen::Matrix<double, 3, 3> inertia_fuselage;
+    inertia_fuselage << 
+    51337.5, 0.0, 0.0,
+    0.0, 4025668.75, 0.0,
+    0.0, 0.0, 4025668.75;
+    Eigen::Vector3d fuselage_offset;
+    fuselage_offset << 20.0, 0.0, 0.0;
+
+    Eigen::Matrix<double, 3, 3> inertia_bell;
+    inertia_bell << 
+    0.0, 0.0, 0.0,
+    0.0, 0.0, 0.0,
+    0.0, 0.0, 0.0;
+    Eigen::Vector3d bell_offset;
+    bell_offset << 0.0, 0.0, 0.0;
+
+    RocketComponent fuselage(30000.0, inertia_fuselage, fuselage_offset);
+    RocketComponent engine_bell(0.0, inertia_bell, bell_offset);
+
+    Engine engine(0.0, 0.0, 0.0, engine_bell);
     engine.limits(5.0 * RADIAN_CONVERSION);
 
     IntegratorRK4 integrator(deltatime);
 
-    Eigen::Matrix<double, 6, 1> state;
-    state << 0.0, 10000.0, 20.0 * RADIAN_CONVERSION,  0.0, 0.0, 0.0;
+    Eigen::Matrix<double, 13, 1> state;
+    state << 
+    0.0, 0.0, 0.0,
+    80.0, 0.0, 80.0,
+    std::cos(45 * RADIAN_CONVERSION), 0.0, -1.0 * std::cos(45 * RADIAN_CONVERSION), 0.0, 
+    0.0, 0.0, 0.0;
 
-    PIDController pid;
-    double target_angle = 0;
-    pid.initializePID(state, target_angle);
-    pid.compute_coefficients(rocket.control_authority(engine), 3.0);
+    PIDController pid_y;
+    PIDController pid_z;
+    double target_angle_y = 0;
+    double target_angle_z = 0;
+
+    std::vector<RocketComponent*> components = {&fuselage, &engine_bell};
+    rocket.set_components(components);
+    
+    Eigen::Vector3d control_authority = rocket.control_authority(engine);
+
+    //pid_y.initializePID(state, target_angle_y);
+    //pid_y.compute_coefficients(control_authority(0), 3.0);
+    //pid_z.initializePID(state, target_angle_z);
+    //pid_z.compute_coefficients(control_authority(1), 3.0);
 
     std::ofstream log_file("logs/trajectory.csv");
     if (!log_file.is_open()) {
         std::cerr << "Error logging data" << std::endl;
         return 1;
     }
-    log_file << "time,x,z,theta,vx,vz,omega,delta,thrust\n";
+    log_file << "time,x,y,z,vx,vy,vz,q1,p2,p3,p4,omegax,omegay,omegaz,delta_y,delta_z\n";
 
     double current_time = 0.0;
     double sim_duration = 50.0;
 
     while (current_time <= sim_duration) {
-        log_file << current_time << "," << state(0) << "," << state(1) << "," << state(2) << "," << state(3) << "," << state(4) << "," << state(5) << "," << engine.get_delta() << "," << engine.get_thrust() << "\n";
-        double new_delta = pid.step(deltatime, state, engine, target_angle);
+
+        Eigen::Vector2d deltas = engine.get_delta();
+
+        log_file << current_time << "," << state(0) << "," << state(1) << "," << state(2) << "," << state(3) << "," << state(4) << "," << state(5) << "," << state(6) << "," << state(7) << "," << state(8) << "," << state(9) << "," << state(10) << "," << state(11) << "," << state(12) << "," << deltas(0) << "," << deltas(1) << "\n";
+
+        //double new_delta_y = pid_y.step(deltatime, state, engine, target_angle_y);
+        //double new_delta_z = pid_z.step(deltatime, state, engine, target_angle_z);
+
         state = integrator.step(state, rocket, engine);
-        engine.set_delta(new_delta);
+
+        rocket.normalize_quaternion(state);
+        //engine.set_delta(new_delta_z, new_delta_y);
+
         current_time += deltatime;
     }
 

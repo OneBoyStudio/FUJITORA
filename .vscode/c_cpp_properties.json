@@ -1,7 +1,7 @@
 {
     "configurations": [
         {
-            "name": "STARS Local Environment",
+            "name": "FJTR Local Environment",
             "includePath": [
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/include"

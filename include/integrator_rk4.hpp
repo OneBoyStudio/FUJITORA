@@ -8,5 +8,5 @@ private:
 public:
     explicit IntegratorRK4(double timestep);
 
-    Eigen::Matrix<double, 6, 1> step(const Eigen::Matrix<double, 6, 1>& state, const Rocket& rocket, const Engine& engine) const;
+    Eigen::Matrix<double, 13, 1> step(const Eigen::Matrix<double, 13, 1>& state, const Rocket& rocket, Engine& engine) const;
 };
