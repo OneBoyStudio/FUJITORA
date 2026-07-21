@@ -1,4 +1,5 @@
 #define _USE_MATH_DEFINES
+#include "graphics.hpp"
 #include <iostream>
 #include <fstream>
 #include <cmath>
@@ -10,6 +11,16 @@
 const double RADIAN_CONVERSION = M_PI / 180.0;
 
 int main() {
+
+    Eigen::Matrix<double, 13, 1> state;
+    state << 
+    0.0, 0.0, 0.0,
+    80.0, 0.0, 80.0,
+    std::cos(45 * RADIAN_CONVERSION), 0.0, -1.0 * std::cos(45 * RADIAN_CONVERSION), 0.0, 
+    0.0, 0.0, 0.0;
+
+    graphicsEngine ge;
+    ge.graphics_init();
 
     double deltatime = 0.01;
 
@@ -39,13 +50,6 @@ int main() {
 
     IntegratorRK4 integrator(deltatime);
 
-    Eigen::Matrix<double, 13, 1> state;
-    state << 
-    0.0, 0.0, 0.0,
-    80.0, 0.0, 80.0,
-    std::cos(45 * RADIAN_CONVERSION), 0.0, -1.0 * std::cos(45 * RADIAN_CONVERSION), 0.0, 
-    0.0, 0.0, 0.0;
-
     PIDController pid_y;
     PIDController pid_z;
     double target_angle_y = 0;
@@ -69,9 +73,11 @@ int main() {
     log_file << "time,x,y,z,vx,vy,vz,q1,p2,p3,p4,omegax,omegay,omegaz,delta_y,delta_z\n";
 
     double current_time = 0.0;
-    double sim_duration = 50.0;
 
-    while (current_time <= sim_duration) {
+    double accumulator_bucket = 0.0;
+    double previous_time = glfwGetTime();
+
+    while (!ge.graphics_should_close()) {
 
         Eigen::Vector2d deltas = engine.get_delta();
 
@@ -80,13 +86,31 @@ int main() {
         //double new_delta_y = pid_y.step(deltatime, state, engine, target_angle_y);
         //double new_delta_z = pid_z.step(deltatime, state, engine, target_angle_z);
 
-        state = integrator.step(state, rocket, engine);
+        double current_time = glfwGetTime();
+        double frame_length = current_time - previous_time;
+        previous_time = current_time;
+
+        if (frame_length >= 0.1) {
+            frame_length = 0.1;
+        }
+
+        accumulator_bucket += frame_length;
+
+        while (accumulator_bucket >= deltatime) {
+
+            //state = integrator.step(state, rocket, engine);
+            accumulator_bucket -= deltatime;
+        }
+
+        ge.graphics_step(state);
 
         rocket.normalize_quaternion(state);
         //engine.set_delta(new_delta_z, new_delta_y);
 
         current_time += deltatime;
     }
+    
+    ge.graphics_end();
 
     log_file.close();
     return 0;

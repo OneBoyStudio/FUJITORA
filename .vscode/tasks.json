@@ -3,14 +3,24 @@
     "tasks": [
         {
             "type": "cppbuild",
-            "label": "Build FJTR",
-            "command": "C:\\MinGW\\bin\\g++.exe",
+            "label": "Build FUJITORA",
+            "command": "C:\\mingw64\\bin\\g++.exe",
             "args": [
                 "-fdiagnostics-color=always",
                 "-g",
                 "${workspaceFolder}/src/*.cpp",
+                "${workspaceFolder}/external/glad/glad.c",
+                "${workspaceFolder}/external/imgui/*.cpp",
                 "-I", "${workspaceFolder}/include",
-                "-o", "${workspaceFolder}/build/FJTR"
+                "-I", "${workspaceFolder}/external",
+                "-I", "${workspaceFolder}/external/GLFW/include",
+                "-I", "${workspaceFolder}/external/glad/include",
+                "-I", "${workspaceFolder}/external/imgui",
+                "-o", "${workspaceFolder}/build/FUJITORA",
+                "-L", "${workspaceFolder}/external/GLFW/lib",
+                "-lglfw3",
+                "-lopengl32",
+                "-lgdi32"
             ],
             "options": {
                 "cwd": "${workspaceFolder}",
