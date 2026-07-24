@@ -41,12 +41,22 @@ void Rocket::set_components(std::vector<RocketComponent*> new_components) {
 
 Eigen::Vector3d Rocket::control_authority(const Engine& engine) const {
 
-    Eigen::Vector3d control_authority_vector;
+    Eigen::Matrix<double, 3, 3> control_effectiveness;
 
     double thrust = engine.get_thrust_magnitude();
-    double constant = length / 2.0;
 
-    control_authority_vector << constant * thrust / inertia_tensor(1, 1), constant * thrust / inertia_tensor(2, 2), thrust / inertia_tensor(2, 2); //3d input is not useful rn lowkirk (must do rcs)
+    double torque_lever = std::hypot(std::hypot(engine.get_displacement()(0), engine.get_displacement()(1)), engine.get_displacement()(2));
+
+    control_effectiveness <<
+    thrust * torque_lever, 0, 0,
+    0, thrust * torque_lever, 0,
+    0, 0, thrust * torque_lever;
+
+    Eigen::Matrix<double, 3, 3> B;
+    B = inertia_tensor.inverse() * control_effectiveness;
+
+    Eigen::Vector3d control_authority_vector;
+    control_authority_vector << B(0, 0), B(1, 1), B(2, 2); // (must do rcs)
     return control_authority_vector;
 }
 

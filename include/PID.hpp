@@ -4,26 +4,24 @@
 
 class PIDController {
 private:
-    double k_p;
-    double k_i;
-    double k_d;
+    Eigen::Matrix<double, 3, 3> gains;
 
-    double I_prev;
-    double theta_prev;
-    double error_prev;
+    Eigen::Vector3d I_prev;
+    Eigen::Quaterniond orientation_prev;
+    Eigen::Vector3d error_prev;
 public:
     //explicit PIDController(double k_p, double k_i, double k_d);
-    void initializePID(const Eigen::Matrix<double, 13, 1> state, double target_angle);
+    void initializePID(const Eigen::Matrix<double, 13, 1> state, Eigen::Quaterniond target_orientation);
 
-    Eigen::Vector3d compute_coefficients(double control_authority, double natural_frequency);
+    Eigen::Matrix<double, 3, 3> compute_coefficients(Eigen::Vector3d control_authority, Eigen::Vector3d natural_frequency);
 
-    double calculate_error(double pitch_angle, double target_angle) const;
-    double calculate_integral(double dt, Eigen::Vector2d error) const;
-    double calculate_derivative(const Eigen::Matrix<double, 13, 1> state) const;
+    Eigen::Vector3d calculate_error(Eigen::Quaterniond orientation, Eigen::Quaterniond target_orientation) const;
+    Eigen::Vector3d calculate_integral(double dt, Eigen::Vector3d error, Eigen::Vector3d error_prev) const;
+    Eigen::Vector3d calculate_derivative(const Eigen::Matrix<double, 13, 1> state) const;
 
-    void update_integral(double error, double correction, const Engine& engine, double integral);
+    void update_integral(Eigen::Vector3d error, Eigen::Vector3d correction, const Engine& engine, Eigen::Vector3d integral);
 
-    double calculate_correction(const Engine& engine, double error, double integral, double derivative) const;
+    Eigen::Vector3d calculate_correction(const Engine& engine, Eigen::Vector3d error, Eigen::Vector3d integral, Eigen::Vector3d derivative) const;
 
-    double step(double dt, const Eigen::Matrix<double, 13, 1> state, const Engine& engine, double target_angle);
+    Eigen::Vector3d step(double dt, const Eigen::Matrix<double, 13, 1> state, const Engine& engine, Eigen::Quaterniond target_orientation);
 };

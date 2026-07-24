@@ -14,9 +14,9 @@ int main() {
 
     Eigen::Matrix<double, 13, 1> state;
     state << 
+    0.0, 0.0, 50.0,
     0.0, 0.0, 0.0,
-    80.0, 0.0, 80.0,
-    std::cos(45 * RADIAN_CONVERSION), 0.0, -1.0 * std::cos(45 * RADIAN_CONVERSION), 0.0, 
+    std::cos(55 * RADIAN_CONVERSION), 0.0, -1.0 * std::sin(55 * RADIAN_CONVERSION), 0.0, 
     0.0, 0.0, 0.0;
 
     graphicsEngine ge;
@@ -45,46 +45,48 @@ int main() {
     RocketComponent fuselage(30000.0, inertia_fuselage, fuselage_offset);
     RocketComponent engine_bell(0.0, inertia_bell, bell_offset);
 
-    Engine engine(0.0, 0.0, 0.0, engine_bell);
+    Engine engine(0.0, 0.0, 460000.0, engine_bell);
     engine.limits(5.0 * RADIAN_CONVERSION);
 
     IntegratorRK4 integrator(deltatime);
 
-    PIDController pid_y;
-    PIDController pid_z;
-    double target_angle_y = 0;
-    double target_angle_z = 0;
-
-    std::vector<RocketComponent*> components = {&fuselage, &engine_bell};
+    std::vector<RocketComponent*> components = {&engine_bell, &fuselage}; //force engine to always be the first component
     rocket.set_components(components);
     
-    Eigen::Vector3d control_authority = rocket.control_authority(engine);
+    PIDController pid;
+    Eigen::Quaterniond target_orientation;
+    target_orientation.w() = std::cos(45 * RADIAN_CONVERSION);
+    target_orientation.x() = 0.0;
+    target_orientation.y() = -1.0 * std::sin(45 * RADIAN_CONVERSION);
+    target_orientation.z() = 0.0;
 
-    //pid_y.initializePID(state, target_angle_y);
-    //pid_y.compute_coefficients(control_authority(0), 3.0);
-    //pid_z.initializePID(state, target_angle_z);
-    //pid_z.compute_coefficients(control_authority(1), 3.0);
+    Eigen::Vector3d control_authority = rocket.control_authority(engine);
+    Eigen::Vector3d natural_frequency(3.0, 3.0, 3.0);
+
+    pid.initializePID(state, target_orientation);
+    pid.compute_coefficients(control_authority, natural_frequency);
 
     std::ofstream log_file("logs/trajectory.csv");
     if (!log_file.is_open()) {
         std::cerr << "Error logging data" << std::endl;
         return 1;
     }
-    log_file << "time,x,y,z,vx,vy,vz,q1,p2,p3,p4,omegax,omegay,omegaz,delta_y,delta_z\n";
+    log_file << "time,x,y,z,vx,vy,vz,q1,q2,q3,q4,omegax,omegay,omegaz,delta_y,delta_z\n";
 
-    double current_time = 0.0;
+    double time = 0.0;
+    //double length = 50.0;
 
     double accumulator_bucket = 0.0;
     double previous_time = glfwGetTime();
 
     while (!ge.graphics_should_close()) {
+    //while (current_time <= length) {
 
         Eigen::Vector2d deltas = engine.get_delta();
 
-        log_file << current_time << "," << state(0) << "," << state(1) << "," << state(2) << "," << state(3) << "," << state(4) << "," << state(5) << "," << state(6) << "," << state(7) << "," << state(8) << "," << state(9) << "," << state(10) << "," << state(11) << "," << state(12) << "," << deltas(0) << "," << deltas(1) << "\n";
+        log_file << time << "," << state(0) << "," << state(1) << "," << state(2) << "," << state(3) << "," << state(4) << "," << state(5) << "," << state(6) << "," << state(7) << "," << state(8) << "," << state(9) << "," << state(10) << "," << state(11) << "," << state(12) << "," << deltas(0) << "," << deltas(1) << "\n";
 
-        //double new_delta_y = pid_y.step(deltatime, state, engine, target_angle_y);
-        //double new_delta_z = pid_z.step(deltatime, state, engine, target_angle_z);
+        Eigen::Vector3d new_controls = pid.step(deltatime, state, engine, target_orientation);
 
         double current_time = glfwGetTime();
         double frame_length = current_time - previous_time;
@@ -98,16 +100,16 @@ int main() {
 
         while (accumulator_bucket >= deltatime) {
 
-            //state = integrator.step(state, rocket, engine);
+            state = integrator.step(state, rocket, engine);
             accumulator_bucket -= deltatime;
         }
 
         ge.graphics_step(state);
 
         rocket.normalize_quaternion(state);
-        //engine.set_delta(new_delta_z, new_delta_y);
+        engine.set_delta(new_controls(1), new_controls(2));
 
-        current_time += deltatime;
+        time += deltatime;
     }
     
     ge.graphics_end();

@@ -194,7 +194,7 @@ Eigen::Matrix<double, 4, 4> compute_model_matrix(const Eigen::Matrix<double, 13,
     Eigen::Quaternion<double> offset;
     offset.w() = std::cos(45 * RADIAN_CONVERSION);
     offset.x() = 0.0;
-    offset.y() = std::cos(45 * RADIAN_CONVERSION);
+    offset.y() = std::sin(45 * RADIAN_CONVERSION);
     offset.z() = 0.0;
 
     orientation = orientation * offset;

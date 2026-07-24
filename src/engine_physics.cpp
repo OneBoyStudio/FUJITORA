@@ -30,6 +30,10 @@ void Engine::set_delta(double new_delta_z, double new_delta_y) {
     delta_y = new_delta_y;
 }
 
+Eigen::Vector3d Engine::get_displacement() const {
+    return engine_component.get_displacement();
+}
+
 void Engine::set_thrust_vector(Eigen::Vector3d tv) {
     thrust = tv;
 }

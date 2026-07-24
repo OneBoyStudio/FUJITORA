@@ -25,6 +25,8 @@ public:
     void set_delta(double new_delta_z, double new_delta_y);
     void set_thrust_vector(Eigen::Vector3d tv);
 
+    Eigen::Vector3d get_displacement() const;
+
     Eigen::Vector3d thrust_vector();
     Eigen::Vector3d torque_vector() const; //only computes z and y components of torque
 };
