@@ -74,12 +74,18 @@ void PIDController::update_integral(Eigen::Vector3d error, Eigen::Vector3d corre
     const double gimbal_limit = engine.get_limit();
     if ((std::abs(correction(1)) >= gimbal_limit) && (error(1) * correction(1) > 0)) {
         I_prev(1) = I_hold(1);
+        
+        //std::cout << "saturated y" << std::endl;
     }
     if ((std::abs(correction(2)) >= gimbal_limit) && (error(2) * correction(2) > 0)) {
         I_prev(2) = I_hold(2);
+        
+        //std::cout << "saturated z" << std::endl;
     }
-    if ((std::abs(correction(0)) >= gimbal_limit) && (error(0) * correction(0) > 0)) {
+    if ((std::abs(correction(0)) >= 1.0) && (error(0) * correction(0) > 0)) {
         I_prev(0) = I_hold(0);
+        
+        //std::cout << "saturated x" << std::endl;
     }
 }
 
@@ -101,6 +107,35 @@ Eigen::Vector3d PIDController::calculate_correction(const Engine& engine, Eigen:
     k_d(2, 2) = gains(1, 2);
 
     Eigen::Vector3d output = (k_p * error) + (k_i * integral) + (k_d * derivative);
+
+    return output;
+}
+
+Eigen::Vector3d PIDController::calculate_uraw(const Engine& engine, Eigen::Vector3d error, Eigen::Vector3d derivative) const {
+
+    Eigen::Matrix<double, 3, 3> k_p = Eigen::Matrix3d::Zero();
+    k_p(0, 0) = gains(0, 0);
+    k_p(1, 1) = gains(0, 1);
+    k_p(2, 2) = gains(0, 2);
+
+    Eigen::Matrix<double, 3, 3> k_i = Eigen::Matrix3d::Zero();
+    k_i(0, 0) = gains(2, 0);
+    k_i(1, 1) = gains(2, 1);
+    k_i(2, 2) = gains(2, 2);
+
+    Eigen::Matrix<double, 3, 3> k_d = Eigen::Matrix3d::Zero();
+    k_d(0, 0) = gains(1, 0);
+    k_d(1, 1) = gains(1, 1);
+    k_d(2, 2) = gains(1, 2);
+
+    Eigen::Vector3d output = (k_p * error) + (k_i * I_prev) + (k_d * derivative);
+
+    return output;
+}
+
+Eigen::Vector3d PIDController::clamp_correction(const Engine& engine, Eigen::Vector3d correction) const {
+
+    Eigen::Vector3d output = correction;
     double engine_clamp = engine.get_limit();
 
     output(1) = std::max(-engine_clamp, std::min(output(1), engine_clamp));
@@ -123,9 +158,13 @@ Eigen::Vector3d PIDController::step(double dt, const Eigen::Matrix<double, 13, 1
     Eigen::Vector3d integral = calculate_integral(dt, error, error_prev);
     Eigen::Vector3d derivative = calculate_derivative(state);
 
-    Eigen::Vector3d correction = calculate_correction(engine, error, integral, derivative);
+    Eigen::Vector3d uraw = calculate_uraw(engine, error, derivative);
+    update_integral(error, uraw, engine, integral);
 
-    update_integral(error, correction, engine, integral);
+    Eigen::Vector3d correction = calculate_correction(engine, error, integral, derivative);
+    
+    correction = clamp_correction(engine, correction);
+
     orientation_prev = orientation;
     error_prev = error;
 

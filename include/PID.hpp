@@ -22,6 +22,8 @@ public:
     void update_integral(Eigen::Vector3d error, Eigen::Vector3d correction, const Engine& engine, Eigen::Vector3d integral);
 
     Eigen::Vector3d calculate_correction(const Engine& engine, Eigen::Vector3d error, Eigen::Vector3d integral, Eigen::Vector3d derivative) const;
+    Eigen::Vector3d calculate_uraw(const Engine& engine, Eigen::Vector3d error, Eigen::Vector3d derivative) const;
+    Eigen::Vector3d clamp_correction(const Engine& engine, Eigen::Vector3d correction) const;
 
     Eigen::Vector3d step(double dt, const Eigen::Matrix<double, 13, 1> state, const Engine& engine, Eigen::Quaterniond target_orientation);
 };

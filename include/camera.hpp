@@ -6,7 +6,7 @@ private:
     double mouse_y;
     double theta = 0.0;
     double phi = 0.0;
-    double r = 65.0;
+    double r = 100.0;
     double pan_sensitivity;
     double scroll_sensitivity;
 

@@ -11,6 +11,7 @@
 #include <fstream>
 #include "graphics.hpp"
 #include "camera.hpp"
+#include "states.hpp"
 
 const double RADIAN_CONVERSION = M_PI / 180.0;
 
@@ -67,7 +68,7 @@ void checkCompileErrors(unsigned int shader, std::string type) {
     }
 }
 
-void graphicsEngine::loadAndCompileShaders(const char* vertexPath, const char* fragmentPath) {
+unsigned int graphicsEngine::loadAndCompileShaders(const char* vertexPath, const char* fragmentPath) {
     std::string vertexCode;
     std::string fragmentCode;
     std::ifstream vShaderFile;
@@ -118,7 +119,7 @@ void graphicsEngine::loadAndCompileShaders(const char* vertexPath, const char* f
     glDeleteShader(vertex);
     glDeleteShader(fragment);
 
-    this->shaderProgram = ID;
+    return ID;
 }
 
 std::array<unsigned int, 3> graphicsEngine::initialize_gl(const std::vector<float>& vertices, const std::vector<unsigned int>& indices) {
@@ -169,6 +170,36 @@ std::array<unsigned int, 2> graphicsEngine::initialize_gl_grid(const std::vector
     return out;
 }
 
+std::array<unsigned int, 2> graphicsEngine::initialize_exhaust_particles() {
+
+    unsigned int VAO, VBO;
+
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+
+    glBindVertexArray(VAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, 100 * sizeof(GPUparticle), NULL, GL_DYNAMIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(GPUparticle), (void*)offsetof(GPUparticle, x));
+
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, sizeof(GPUparticle), (void*)offsetof(GPUparticle, lifespan_ratio));
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
+    std::array<unsigned int, 2> out = {VAO, VBO};
+    return out;
+}
+
+void graphicsEngine::update_exhaust_particles(unsigned int& VBO, std::vector<GPUparticle> active_particles) {
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, active_particles.size() * sizeof(GPUparticle), active_particles.data());
+}
+
 void clean_gl(std::array<unsigned int, 3> rocket, std::array<unsigned int, 3> pad, std::array<unsigned int, 2> grid) {
 
     glDeleteVertexArrays(1, &rocket[0]);
@@ -183,7 +214,7 @@ void clean_gl(std::array<unsigned int, 3> rocket, std::array<unsigned int, 3> pa
     glDeleteBuffers(1, &grid[1]);
 }
 
-Eigen::Matrix<double, 4, 4> compute_model_matrix(const Eigen::Matrix<double, 13, 1>& state, double height) {
+Eigen::Matrix<double, 4, 4> compute_model_matrix(const Eigen::Matrix<double, 13, 1>& state) {
 
     Eigen::Quaternion<double> orientation;
     orientation.w() = state(6);
@@ -200,7 +231,7 @@ Eigen::Matrix<double, 4, 4> compute_model_matrix(const Eigen::Matrix<double, 13,
     orientation = orientation * offset;
 
     Eigen::Vector3d translation;
-    translation << state(0), state(1), state(2) + (height / 2);
+    translation << state(0), state(1), state(2);
 
     Eigen::Matrix<double, 3, 3> rot_matrix = orientation.toRotationMatrix();
 
@@ -211,12 +242,12 @@ Eigen::Matrix<double, 4, 4> compute_model_matrix(const Eigen::Matrix<double, 13,
     return out;
 }
 
-Eigen::Matrix<double, 4, 4> compute_view_matrix(const Eigen::Vector3d& eye, const Eigen::Matrix<double, 13, 1>& state, double height) {
+Eigen::Matrix<double, 4, 4> compute_view_matrix(const Eigen::Vector3d& eye, const Eigen::Matrix<double, 13, 1>& state) {
 
     Eigen::Vector3d up(0, 0, 1);
 
     Eigen::Vector3d translation;
-    translation << state(0), state(1), state(2) + (height / 2);
+    translation << state(0), state(1), state(2);
 
     Eigen::Vector3d y = eye - translation;
     y.normalize();
@@ -381,20 +412,27 @@ void initialize_landing_pad(std::vector<float>& meshvertices, std::vector<float>
 
 void graphicsEngine::locate_uniforms() {
 
-    shaderUniformLocations.push_back(glGetUniformLocation(shaderProgram, "backgroundColor"));
+    // general shader
 
-    shaderUniformLocations.push_back(glGetUniformLocation(shaderProgram, "fogBegin"));
-    shaderUniformLocations.push_back(glGetUniformLocation(shaderProgram, "fogClamp"));
+    shaderUniformLocations.push_back(glGetUniformLocation(generalShaderProgram, "backgroundColor"));
 
-    shaderUniformLocations.push_back(glGetUniformLocation(shaderProgram, "Projection"));
-    shaderUniformLocations.push_back(glGetUniformLocation(shaderProgram, "View"));
-    shaderUniformLocations.push_back(glGetUniformLocation(shaderProgram, "Model"));
+    shaderUniformLocations.push_back(glGetUniformLocation(generalShaderProgram, "fogBegin"));
+    shaderUniformLocations.push_back(glGetUniformLocation(generalShaderProgram, "fogClamp"));
 
-    shaderUniformLocations.push_back(glGetUniformLocation(shaderProgram, "ObjectColor"));
-    shaderUniformLocations.push_back(glGetUniformLocation(shaderProgram, "eyePosition"));
+    shaderUniformLocations.push_back(glGetUniformLocation(generalShaderProgram, "Projection"));
+    shaderUniformLocations.push_back(glGetUniformLocation(generalShaderProgram, "View"));
+    shaderUniformLocations.push_back(glGetUniformLocation(generalShaderProgram, "Model"));
 
-    shaderUniformLocations.push_back(glGetUniformLocation(shaderProgram, "shininess"));
-    shaderUniformLocations.push_back(glGetUniformLocation(shaderProgram, "ambience"));
+    shaderUniformLocations.push_back(glGetUniformLocation(generalShaderProgram, "ObjectColor"));
+    shaderUniformLocations.push_back(glGetUniformLocation(generalShaderProgram, "eyePosition"));
+
+    shaderUniformLocations.push_back(glGetUniformLocation(generalShaderProgram, "shininess"));
+    shaderUniformLocations.push_back(glGetUniformLocation(generalShaderProgram, "ambience"));
+
+    // particle shader
+
+    shaderUniformLocations.push_back(glGetUniformLocation(particleShaderProgram, "Projection"));
+    shaderUniformLocations.push_back(glGetUniformLocation(particleShaderProgram, "View"));
 }
 
 int graphicsEngine::graphics_init() {
@@ -434,6 +472,7 @@ int graphicsEngine::graphics_init() {
     }
 
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_PROGRAM_POINT_SIZE);
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -448,7 +487,7 @@ int graphicsEngine::graphics_init() {
 
     std::vector<float> rocket_vertices(150);
     std::vector<unsigned int> rocket_indices(288);
-    initialize_rocket(rocket_vertices, rocket_indices, 1.85, 40);
+    initialize_rocket(rocket_vertices, rocket_indices, 1.85, 70);
 
     std::vector<float> grid_vertices(6012);
     std::vector<float> mesh_vertices(12);
@@ -456,10 +495,13 @@ int graphicsEngine::graphics_init() {
 
     initialize_landing_pad(mesh_vertices, grid_vertices, mesh_indices, 10000);
 
-    loadAndCompileShaders("src/shaders/shader.vert", "src/shaders/shader.frag");
+    this->generalShaderProgram = loadAndCompileShaders("src/shaders/shader.vert", "src/shaders/shader.frag");
+    this->particleShaderProgram = loadAndCompileShaders("src/shaders/particle.vert", "src/shaders/particle.frag");
+
     this->rocket_buffers_arrays = initialize_gl(rocket_vertices, rocket_indices);
     this->grid_buffers_arrays = initialize_gl_grid(grid_vertices);
     this->pad_buffers_arrays = initialize_gl(mesh_vertices, mesh_indices);
+    this->engine_exhaust_buffers_arrays = initialize_exhaust_particles();
 
     Eigen::Vector3d newEye(0.0, 65.0, 20.0);
     this->eye = newEye;
@@ -500,13 +542,14 @@ void graphicsEngine::graphics_end() {
     ImGui::DestroyContext();
 
     clean_gl(rocket_buffers_arrays, pad_buffers_arrays, grid_buffers_arrays);
-    glDeleteProgram(shaderProgram);
+    glDeleteProgram(generalShaderProgram);
+    glDeleteProgram(particleShaderProgram);
 
     glfwDestroyWindow(window);
     glfwTerminate();
 }
 
-void graphicsEngine::graphics_step(const Eigen::Matrix<double, 13, 1>& state) {
+void graphicsEngine::graphics_step(const Eigen::Matrix<double, 13, 1>& state, particle_ring_buffer& engine_exhaust) {
 
     Eigen::Matrix<float, 4, 4> i = Eigen::Matrix4f::Identity();
 
@@ -527,12 +570,12 @@ void graphicsEngine::graphics_step(const Eigen::Matrix<double, 13, 1>& state) {
     ImGui::Text("x: %f, y: %f. z: %f", state(0), state(1), state(2));
     ImGui::End();
 
-    drag_pan(cam, state, eye, 40);
-    Eigen::Matrix<float, 4, 4> model_matrix = compute_model_matrix(state, 40).cast<float>();
-    Eigen::Matrix<float, 4, 4> view_matrix = compute_view_matrix(eye, state, 40).cast<float>();
+    drag_pan(cam, state, eye, 70);
+    Eigen::Matrix<float, 4, 4> model_matrix = compute_model_matrix(state).cast<float>();
+    Eigen::Matrix<float, 4, 4> view_matrix = compute_view_matrix(eye, state).cast<float>();
     Eigen::Matrix<float, 4, 4> projection_matrix = compute_projection_matrix(window_width, window_height, 50.0 * RADIAN_CONVERSION, 0.1, 1000.0).cast<float>();
 
-    glUseProgram(shaderProgram);
+    glUseProgram(generalShaderProgram);
 
     glUniform3fv(shaderUniformLocations[0], 1, bg_color);
     glUniform1f(shaderUniformLocations[1], 400.0);
@@ -579,6 +622,18 @@ void graphicsEngine::graphics_step(const Eigen::Matrix<double, 13, 1>& state) {
     glLineWidth(5.0);
 
     glDrawArrays(GL_LINES, 0, 2004);
+
+    //engine particles
+    glUseProgram(particleShaderProgram);
+    glBindVertexArray(engine_exhaust_buffers_arrays[0]);
+
+    int particle_count = 0;
+    update_exhaust_particles(engine_exhaust_buffers_arrays[1], engine_exhaust.get_active_particle_positions(particle_count));
+
+    glUniformMatrix4fv(shaderUniformLocations[10], 1, GL_FALSE, projection_matrix.data());
+    glUniformMatrix4fv(shaderUniformLocations[11], 1, GL_FALSE, view_matrix.data());
+
+    glDrawArrays(GL_POINTS, 0, particle_count);
 
     glBindVertexArray(0);
 
