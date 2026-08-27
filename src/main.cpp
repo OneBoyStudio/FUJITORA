@@ -8,6 +8,7 @@
 #include "integrator_rk4.hpp"
 #include "PID.hpp"
 #include "states.hpp"
+#include "guidance.hpp"
 
 const double RADIAN_CONVERSION = M_PI / 180.0;
 
@@ -113,13 +114,32 @@ int main() {
     log_file << "time,x,y,z,vx,vy,vz,q1,q2,q3,q4,omegax,omegay,omegaz,delta_y,delta_z\n";
 
     double time = 0.0;
-    //double length = 50.0;
 
     double accumulator_bucket = 0.0;
     double previous_time = glfwGetTime();
 
+    Guidance guidance("scripts/dist/trajectory_guidance_solver.exe");
+    Eigen::VectorXd curr_solver_state(11);
+
+    double liquid_mass = structure.get_fuel_mass() * (1 * structure.get_fuel_mass());
+    double dry_mass = structure.get_mass() - liquid_mass;
+    curr_solver_state << state(0), state(1), state(2), state(3), state(4), state(5), dry_mass, liquid_mass, engine.get_max_thrust(), engine.get_min_thrust(), engine.get_specific_impulse();
+    std::vector<TrajectoryStateNode> current_plan;
+    double last_call_guidance = -1.0;
+
     while (!ge.graphics_should_close()) {
-    //while (current_time <= length) {
+
+        if (time - last_call_guidance >= 1.0) {
+            if (!guidance.is_solver_running()) {
+                guidance.trigger_asynchronous_solve(curr_solver_state);
+                last_call_guidance = time;
+            }
+        }
+
+        if (guidance.new_trajectory_obtained()) {
+            current_plan = guidance.get_latest_trajectory();
+            std::cout << "new trajectory obtained: " << current_plan.size() << std::endl;
+        }
 
         Eigen::Vector2d deltas = engine.get_delta();
 

@@ -1,7 +1,7 @@
 {
     "configurations": [
         {
-            "name": "FJTR Local Environment",
+            "name": "FUJITORA Local Environment",
             "includePath": [
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/include"

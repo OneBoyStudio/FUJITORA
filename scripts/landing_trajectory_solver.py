@@ -1,147 +1,172 @@
 import casadi as cas
 import numpy as np
 import matplotlib.pyplot as plt
+import sys
+import os
 
 from matplotlib.gridspec import GridSpec
 
-m_dry = 1500.0
-m_liquid = 500.0
+current_dir = os.path.dirname(__file__)
+INPUT_PATH = os.path.abspath(os.path.join(current_dir, "..", "guidance", "input.csv"))
+OUTPUT_TEMP_PATH = os.path.abspath(os.path.join(current_dir, "..", "guidance", "trajectory_out.tmp"))
+OUTPUT_PATH = os.path.abspath(os.path.join(current_dir, "..", "guidance", "trajectory_out.csv"))
 
-I_sp = 255 # this is calculated wrt gravity on earth
-g_planet = 3.721
-alpha = 1 / (I_sp * 9.81) #always use gravity on earth even if g_planet is not earth
+def optimize_trajectory():
 
-#T_max = 7605000
-T_max = 22000
-T_min = 0.15 * T_max
+    if not os.path.exists(INPUT_PATH):
+        sys.exit(1)
 
-gamma = np.radians(75)
-theta_max = np.radians(25)
+    input_parse = np.loadtxt(INPUT_PATH, delimiter=',')
 
-tan_gamma = np.tan(gamma)
-cos_theta_max = np.cos(theta_max)
+    m_dry = input_parse[6]
+    m_liquid = input_parse[7]
 
-# boundary values
-x_i = np.array([-2000.0, 1500.0, 2000.0, 50.0, 70.0, -75.0, (m_liquid + m_dry)])
-x_f = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    I_sp = input_parse[11] # this is calculated wrt gravity on earth
+    g_planet = 3.721
+    alpha = 1 / (I_sp * 9.81) #always use gravity on earth even if g_planet is not earth
 
-total_time = abs(int(x_i[2] * 2 / x_i[5])) + 1
-dt = 1
-N = int(1 + (total_time/dt))
+    T_max = input_parse[8]
+    T_min = input_parse[9]
 
-#symbollic variables
-x_sym = cas.MX.sym('x', 7)
-u_sym = cas.MX.sym('u', 3)
+    gamma = np.radians(75)
+    tan_gamma = np.tan(gamma)
 
-p_dot = x_sym[3:6] #velocity
-v_dot = (u_sym / x_sym[6]) + cas.MX([0.0, 0.0, -g_planet]) #acceleration
-m_dot = -alpha * ((u_sym.T @ u_sym) + 1e-5)**0.5
+    # boundary values
+    x_i = np.array([input_parse[0], input_parse[1], input_parse[2], input_parse[3], input_parse[4], input_parse[5], (m_liquid + m_dry)])
+    x_f = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 
-x_dot = cas.vertcat(p_dot, v_dot, m_dot)
+    a_1 = g_planet - (T_min / (m_dry + m_liquid))
+    a_2 = (T_max / (m_dry + m_liquid)) - g_planet 
+    v_max = ((a_2*(x_i[5]**2) + 2 * a_1 * a_2 * x_i[2]) / (a_1 + a_2))**0.5
 
-f = cas.Function('f', [x_sym, u_sym], [x_dot])
+    total_time = ((v_max - x_i[5]) / a_1) + (v_max / a_2)
+    dt = 1
+    N = int(1 + (total_time/dt))
 
-def x_step(xsym, usym):
-    k1 = f(xsym, usym)
-    k2 = f(xsym + (0.5 * dt * k1), usym)
-    k3 = f(xsym + (0.5 * dt * k2), usym)
-    k4 = f(xsym + (dt * k3), usym)
+    #symbollic variables
+    x_sym = cas.MX.sym('x', 7)
+    u_sym = cas.MX.sym('u', 3)
 
-    xnext = xsym + (dt/6) * (k1 + 2*k2 + 2*k3 + k4)
-    return xnext
+    p_dot = x_sym[3:6] #velocity
+    v_dot = (u_sym / x_sym[6]) + cas.MX([0.0, 0.0, -g_planet]) #acceleration
+    m_dot = -alpha * ((u_sym.T @ u_sym) + 1e-5)**0.5
 
-x_step_rk4 = cas.Function('step_rk4', [x_sym, u_sym], [x_step(x_sym, u_sym)])
+    x_dot = cas.vertcat(p_dot, v_dot, m_dot)
 
-x_sym_list = []
-u_sym_list = []
+    f = cas.Function('f', [x_sym, u_sym], [x_dot])
 
-for k in range(N):
-    x_sym_list.append(cas.MX.sym(f'X_{k}', 7))
+    def x_step(xsym, usym):
+        k1 = f(xsym, usym)
+        k2 = f(xsym + (0.5 * dt * k1), usym)
+        k3 = f(xsym + (0.5 * dt * k2), usym)
+        k4 = f(xsym + (dt * k3), usym)
 
-for k in range(N - 1):
-    u_sym_list.append(cas.MX.sym(f'U_{k}', 3))
+        xnext = xsym + (dt/6) * (k1 + 2*k2 + 2*k3 + k4)
+        return xnext
 
-g = []
-lbg = []
-ubg = []
+    x_step_rk4 = cas.Function('step_rk4', [x_sym, u_sym], [x_step(x_sym, u_sym)])
 
-lbz = []
-ubz = []
+    x_sym_list = []
+    u_sym_list = []
 
-J = 0.0
+    for k in range(N):
+        x_sym_list.append(cas.MX.sym(f'X_{k}', 7))
 
-g.append(x_sym_list[0] - x_i)
-lbg.extend([0.0] * 7)
-ubg.extend([0.0] * 7)
+    for k in range(N - 1):
+        u_sym_list.append(cas.MX.sym(f'U_{k}', 3))
 
-for k in range(N - 1):
-    x_prediction = x_step_rk4(x_sym_list[k], u_sym_list[k])
-    defect = x_sym_list[k + 1] - x_prediction
-    g.append(defect)
+    g = []
+    lbg = []
+    ubg = []
+
+    lbz = []
+    ubz = []
+
+    J = 0.0
+
+    g.append(x_sym_list[0] - x_i)
     lbg.extend([0.0] * 7)
     ubg.extend([0.0] * 7)
 
-    J += ((u_sym_list[k].T @ u_sym_list[k]) / T_max**2) * dt
+    for k in range(N - 1):
+        x_prediction = x_step_rk4(x_sym_list[k], u_sym_list[k])
+        defect = x_sym_list[k + 1] - x_prediction
+        g.append(defect)
+        lbg.extend([0.0] * 7)
+        ubg.extend([0.0] * 7)
 
-    p_k = x_sym_list[k][0:3]
-    glideslope = p_k[0]**2 + p_k[1]**2 - (p_k[2] * tan_gamma)**2
-    g.append(glideslope)
-    lbg.append(-np.inf)
-    ubg.append(0.0)
+        J += ((u_sym_list[k].T @ u_sym_list[k]) / T_max**2) * dt
 
-    thrust_squared = u_sym_list[k].T @ u_sym_list[k]
-    g.append(thrust_squared)
-    lbg.append(T_min**2)
-    ubg.append(T_max**2)
+        p_k = x_sym_list[k][0:3]
+        glideslope = p_k[0]**2 + p_k[1]**2 - (p_k[2] * tan_gamma)**2
+        g.append(glideslope)
+        lbg.append(-np.inf)
+        ubg.append(0.0)
 
-g.append(x_sym_list[N - 1][:6] - x_f)
-lbg.extend([0.0] * 6)
-ubg.extend([0.0] * 6)
+        thrust_squared = u_sym_list[k].T @ u_sym_list[k]
+        g.append(thrust_squared)
+        lbg.append(T_min**2)
+        ubg.append(T_max**2)
 
-for k in range(N):
-    lbz.extend([-np.inf, -np.inf, 0.0, -np.inf, -np.inf, -np.inf, m_dry])
-    ubz.extend([np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, (m_dry + m_liquid)])
+    g.append(x_sym_list[N - 1][:6] - x_f)
+    lbg.extend([0.0] * 6)
+    ubg.extend([0.0] * 6)
 
-for k in range(N - 1):
-    lbz.extend([-T_max, -T_max, 0.0])
-    ubz.extend([T_max, T_max, T_max])
+    for k in range(N):
+        lbz.extend([-np.inf, -np.inf, 0.0, -np.inf, -np.inf, -np.inf, m_dry])
+        ubz.extend([np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, (m_dry + m_liquid)])
 
-z_decision_vector = cas.vertcat(*x_sym_list, *u_sym_list)
-g_vector = cas.vertcat(*g)
+    for k in range(N - 1):
+        lbz.extend([-T_max, -T_max, 0.0])
+        ubz.extend([T_max, T_max, T_max])
 
-nlp = {
-    'x': z_decision_vector,
-    'f': J,
-    'g': g_vector
-}
+    z_decision_vector = cas.vertcat(*x_sym_list, *u_sym_list)
+    g_vector = cas.vertcat(*g)
 
-opts = {'ipopt.print_level': 1, 'print_time': True, 'ipopt.tol': 1e-5, 'ipopt.constr_viol_tol': 1e-5}
-solver = cas.nlpsol('solver', 'ipopt', nlp, opts)
+    nlp = {
+        'x': z_decision_vector,
+        'f': J,
+        'g': g_vector
+    }
 
-z_0 = []
-for k in range(N):
-    a = k / (N - 1)
-    lerp_x = (1.0 - a) * x_i[:6] + a * x_f
-    z_0.extend(lerp_x)
-    z_0.append(m_dry + m_liquid)
+    opts = {'ipopt.print_level': 1, 'print_time': True, 'ipopt.tol': 1e-5, 'ipopt.constr_viol_tol': 1e-5}
+    solver = cas.nlpsol('solver', 'ipopt', nlp, opts)
 
-for k in range(N - 1):
-    z_0.extend([0.0, 0.0, (m_dry + m_liquid) * g_planet])
+    z_0 = []
+    for k in range(N):
+        a = k / (N - 1)
+        lerp_x = (1.0 - a) * x_i[:6] + a * x_f
+        z_0.extend(lerp_x)
+        z_0.append(m_dry + m_liquid)
 
-sol = solver(x0=z_0, lbx=lbz, ubx=ubz, lbg=lbg, ubg=ubg)
+    for k in range(N - 1):
+        z_0.extend([0.0, 0.0, (m_dry + m_liquid) * g_planet])
 
-z_opt = sol['x'].full().flatten()
+    sol = solver(x0=z_0, lbx=lbz, ubx=ubz, lbg=lbg, ubg=ubg)
 
-num_state_vars = N * 7
-x_opt = z_opt[0:num_state_vars].reshape((N, 7))
+    z_opt = sol['x'].full().flatten()
 
-u_opt = z_opt[num_state_vars:].reshape((N - 1, 3))
+    num_state_vars = N * 7
+    x_opt = z_opt[0:num_state_vars].reshape((N, 7))
 
-print("\n--- OPTIMIZATION COMPLETE ---")
-print(f"Final Altitude: {x_opt[-1, 2]:.4f} m")
-print(f"Final Velocity: {x_opt[-1, 5]:.4f} m/s")
+    u_opt = z_opt[num_state_vars:].reshape((N - 1, 3))
+
+    trajectory_out = np.stack([np.linspace(0, (N - 1) * dt, N).reshape((N, 1)), x_opt[:6], u_opt])
+    np.savetxt(OUTPUT_TEMP_PATH, trajectory_out, delimiter=',', fmt='%.6f')
+    if os.path.exists(OUTPUT_PATH):
+        os.remove(OUTPUT_PATH)
+    os.rename(OUTPUT_TEMP_PATH, OUTPUT_PATH)
+
+    '''print("\n--- OPTIMIZATION COMPLETE ---")
+    print(f"Final Altitude: {x_opt[-1, 2]:.4f} m")
+    print(f"Final Velocity: {x_opt[-1, 5]:.4f} m/s")'''
 
 
+
+if __name__ == "__main__":
+    optimize_trajectory()
+
+'''
 # Graphing
 fig = plt.figure(layout='constrained')
 gs = GridSpec(2, 2, figure=fig)
@@ -189,3 +214,4 @@ ax3.set_ylabel('Velocity (m/s)')
 ax3.set_title('Velocity Magnitude (m/s) in Each Direction Through Time')
 
 plt.show()
+'''

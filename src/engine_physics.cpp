@@ -3,10 +3,11 @@
 #include <set>
 #include <iostream>
 
-Engine::Engine(double d_z, double d_y, double t, double i, RocketComponent& ec)
+Engine::Engine(double d_z, double d_y, double t_max, double i, RocketComponent& ec)
     : delta_z(d_z),
       delta_y(d_y),
-      thrust_magnitude(t),
+      max_thrust(t_max),
+      min_thrust(0.4 * t_max),
       specific_impulse(i),
       engine_component(ec)
 {};
@@ -33,9 +34,21 @@ Eigen::Vector2d Engine::get_delta() const {
     return out;
 }
 
+double Engine::get_max_thrust() const {
+    return max_thrust;
+}
+
+double Engine::get_min_thrust() const {
+    return min_thrust;
+}
+
 void Engine::set_delta(double new_delta_z, double new_delta_y) {
     delta_y = new_delta_y;
     delta_z = new_delta_z;
+}
+
+void Engine::set_thrust_magnitude(double magnitude) {
+    thrust_magnitude = magnitude;
 }
 
 Eigen::Vector3d Engine::get_displacement() const {

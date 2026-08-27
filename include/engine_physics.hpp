@@ -10,6 +10,9 @@ private:
     double delta_y;
     double gimbal_limit;
 
+    double max_thrust;
+    double min_thrust;
+
     double thrust_magnitude;
     Eigen::Vector3d thrust;
 
@@ -17,7 +20,7 @@ private:
 
     RocketComponent& engine_component;
 public:
-    explicit Engine(double d_z, double d_y, double t, double i, RocketComponent& ec);
+    explicit Engine(double d_z, double d_y, double t_max, double i, RocketComponent& ec);
 
     void limits(double limit);
     double get_limit() const;
@@ -25,7 +28,11 @@ public:
     Eigen::Vector3d get_thrust_vectors() const;
     Eigen::Vector2d get_delta() const;
 
+    double get_max_thrust() const;
+    double get_min_thrust() const;
+
     void set_delta(double new_delta_z, double new_delta_y);
+    void set_thrust_magnitude(double magnitude);
     void set_thrust_vector(Eigen::Vector3d tv);
 
     Eigen::Vector3d get_displacement() const;
