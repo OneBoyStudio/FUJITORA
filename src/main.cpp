@@ -13,7 +13,6 @@
 const double RADIAN_CONVERSION = M_PI / 180.0;
 
 int main() {
-
     Eigen::Matrix<double, 13, 1> state;
     state << 
     0.0, 0.0, 0.0,
@@ -118,7 +117,7 @@ int main() {
     double accumulator_bucket = 0.0;
     double previous_time = glfwGetTime();
 
-    Guidance guidance("scripts/dist/trajectory_guidance_solver.exe");
+    Guidance guidance("scripts/dist/trajectory_guidance_solver/trajectory_guidance_solver.exe");
     Eigen::VectorXd curr_solver_state(11);
 
     double liquid_mass = structure.get_fuel_mass() * (1 * structure.get_fuel_mass());

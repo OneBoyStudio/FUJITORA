@@ -1,18 +1,26 @@
 import casadi as cas
 import numpy as np
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import sys
 import os
+from pathlib import Path
 
-from matplotlib.gridspec import GridSpec
+#from matplotlib.gridspec import GridSpec
 
-current_dir = os.path.dirname(__file__)
+if sys.frozen == True:
+    filenm = Path(sys.executable).stem
+    current_dir = Path(sys.executable).resolve().parent.parent.parent
+else:
+    filenm = Path(__file__).stem
+    current_dir = Path(__file__).resolve().parent    
+
 INPUT_PATH = os.path.abspath(os.path.join(current_dir, "..", "guidance", "input.csv"))
 OUTPUT_TEMP_PATH = os.path.abspath(os.path.join(current_dir, "..", "guidance", "trajectory_out.tmp"))
 OUTPUT_PATH = os.path.abspath(os.path.join(current_dir, "..", "guidance", "trajectory_out.csv"))
 
 def optimize_trajectory():
 
+    print(current_dir)
     if not os.path.exists(INPUT_PATH):
         sys.exit(1)
 
@@ -21,7 +29,7 @@ def optimize_trajectory():
     m_dry = input_parse[6]
     m_liquid = input_parse[7]
 
-    I_sp = input_parse[11] # this is calculated wrt gravity on earth
+    I_sp = input_parse[10] # this is calculated wrt gravity on earth
     g_planet = 3.721
     alpha = 1 / (I_sp * 9.81) #always use gravity on earth even if g_planet is not earth
 
@@ -147,11 +155,12 @@ def optimize_trajectory():
     z_opt = sol['x'].full().flatten()
 
     num_state_vars = N * 7
-    x_opt = z_opt[0:num_state_vars].reshape((N, 7))
-
+    x_opt = z_opt[:num_state_vars].reshape((N, 7))
     u_opt = z_opt[num_state_vars:].reshape((N - 1, 3))
 
-    trajectory_out = np.stack([np.linspace(0, (N - 1) * dt, N).reshape((N, 1)), x_opt[:6], u_opt])
+    time_ax = np.linspace(0, (N - 1) * dt, N).reshape((N, 1))[:N - 1]
+    trajectory_out = np.hstack([time_ax, x_opt[:N - 1, :6], u_opt])
+
     np.savetxt(OUTPUT_TEMP_PATH, trajectory_out, delimiter=',', fmt='%.6f')
     if os.path.exists(OUTPUT_PATH):
         os.remove(OUTPUT_PATH)
@@ -160,8 +169,6 @@ def optimize_trajectory():
     '''print("\n--- OPTIMIZATION COMPLETE ---")
     print(f"Final Altitude: {x_opt[-1, 2]:.4f} m")
     print(f"Final Velocity: {x_opt[-1, 5]:.4f} m/s")'''
-
-
 
 if __name__ == "__main__":
     optimize_trajectory()
