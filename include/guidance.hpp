@@ -5,6 +5,9 @@
 #include <mutex>
 #include <future>
 #include <Eigen/Dense>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 struct TrajectoryStateNode {
     double t;
@@ -15,10 +18,10 @@ struct TrajectoryStateNode {
 
 class Guidance {
 private:
-    std::string solver_program;
+    fs::path solver_program;
 
-    std::string input_path_csv = "guidance/input.csv";
-    std::string output_path_csv = "guidance/trajectory_out.csv";
+    fs::path input_path_csv;
+    fs::path output_path_csv;
 
     std::atomic<bool> curr_solving{false};
     std::atomic<bool> update_available{false};
@@ -27,11 +30,12 @@ private:
     std::mutex data_mutex;
     std::vector<TrajectoryStateNode> current_trajectory;
 
+    fs::path resolve_path(const fs::path& rel_path);
     void write_csv(const Eigen::VectorXd& state);
     std::vector<TrajectoryStateNode> read_csv();
     void worker(Eigen::VectorXd snapshot);
 public:
-    Guidance(std::string solver_path);
+    Guidance(const fs::path& solver_rel_path, const fs::path& guidance_rel_dir);
     ~Guidance();
 
     void trigger_asynchronous_solve(const Eigen::VectorXd& state);

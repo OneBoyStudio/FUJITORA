@@ -2,12 +2,34 @@
 #include <fstream>
 #include <sstream>
 #include <cstdlib>
+#include <iostream>
 
-Guidance::Guidance(std::string solver_path) : solver_program(std::move(solver_path)) {};
+Guidance::Guidance(const fs::path& solver_rel_path, const fs::path& guidance_rel_dir) : solver_program(std::move(solver_rel_path)) {
+
+    solver_program = resolve_path(solver_rel_path);
+
+    fs::path guidance_dir = resolve_path(guidance_rel_dir);
+    input_path_csv = guidance_dir / "input.csv";
+    output_path_csv = guidance_dir / "trajectory_out.csv";
+}
+
 Guidance::~Guidance() {
     if (worker_future.valid()) {
         worker_future.wait();
     }
+}
+
+fs::path Guidance::resolve_path(const fs::path& rel_path) {
+    if (fs::exists(rel_path)) {
+        return fs::canonical(rel_path);
+    }
+
+    fs::path stepped_path = fs::path("..") / rel_path;
+    if (fs::exists(stepped_path)) {
+        return fs::canonical(stepped_path);
+    }
+
+    return rel_path;
 }
 
 bool Guidance::is_solver_running() const {
@@ -19,14 +41,18 @@ bool Guidance::new_trajectory_obtained() const {
 }
 
 void Guidance::write_csv(const Eigen::VectorXd& state) {
-    std::ofstream file(input_path_csv);
+    if (input_path_csv.has_parent_path()) {
+        fs::create_directories(input_path_csv.parent_path());
+    }
+
+    std::ofstream file(input_path_csv, std::ios::trunc);
     for (int i = 0; i < state.size(); i++) {
         file << state(i);
         if(i == state.size() - 1) {
-            file << ",";
+            file << "";
         }
         else {
-            file << "";
+            file << ",";
         }
     }
     file << "\n";
@@ -65,7 +91,11 @@ std::vector<TrajectoryStateNode> Guidance::read_csv() {
 void Guidance::worker(Eigen::VectorXd snapshot) {
     write_csv(snapshot);
 
-    std::string command = solver_program;
+    fs::path target_program = solver_program;
+    solver_program.make_preferred();
+
+    std::string command = "\"" + target_program.string() + "\"";
+
     int exit_code = std::system(command.c_str());
 
     if (exit_code == 0) {

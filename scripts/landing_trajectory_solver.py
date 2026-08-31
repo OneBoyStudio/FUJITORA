@@ -12,7 +12,7 @@ if sys.frozen == True:
     current_dir = Path(sys.executable).resolve().parent.parent.parent
 else:
     filenm = Path(__file__).stem
-    current_dir = Path(__file__).resolve().parent    
+    current_dir = Path(__file__).resolve().parent
 
 INPUT_PATH = os.path.abspath(os.path.join(current_dir, "..", "guidance", "input.csv"))
 OUTPUT_TEMP_PATH = os.path.abspath(os.path.join(current_dir, "..", "guidance", "trajectory_out.tmp"))
@@ -25,6 +25,8 @@ def optimize_trajectory():
         sys.exit(1)
 
     input_parse = np.loadtxt(INPUT_PATH, delimiter=',')
+
+    print(input_parse)
 
     m_dry = input_parse[6]
     m_liquid = input_parse[7]
@@ -43,8 +45,8 @@ def optimize_trajectory():
     x_i = np.array([input_parse[0], input_parse[1], input_parse[2], input_parse[3], input_parse[4], input_parse[5], (m_liquid + m_dry)])
     x_f = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 
-    a_1 = g_planet - (T_min / (m_dry + m_liquid))
-    a_2 = (T_max / (m_dry + m_liquid)) - g_planet 
+    a_1 = g_planet
+    a_2 = (T_max / (m_dry + m_liquid)) - g_planet
     v_max = ((a_2*(x_i[5]**2) + 2 * a_1 * a_2 * x_i[2]) / (a_1 + a_2))**0.5
 
     total_time = ((v_max - x_i[5]) / a_1) + (v_max / a_2)

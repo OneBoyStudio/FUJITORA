@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <cmath>
+#include <filesystem>
 #include "rocket_physics.hpp"
 #include "engine_physics.hpp"
 #include "integrator_rk4.hpp"
@@ -11,6 +12,7 @@
 #include "guidance.hpp"
 
 const double RADIAN_CONVERSION = M_PI / 180.0;
+namespace fs = std::filesystem;
 
 int main() {
     Eigen::Matrix<double, 13, 1> state;
@@ -113,11 +115,18 @@ int main() {
     log_file << "time,x,y,z,vx,vy,vz,q1,q2,q3,q4,omegax,omegay,omegaz,delta_y,delta_z\n";
 
     double time = 0.0;
+    double real_time = 0.0;
 
     double accumulator_bucket = 0.0;
     double previous_time = glfwGetTime();
 
-    Guidance guidance("scripts/dist/trajectory_guidance_solver/trajectory_guidance_solver.exe");
+    #if defined(_WIN32)
+        fs::path solver_bin = fs::path("scripts") / "dist" / "trajectory_guidance_solver" / "trajectory_guidance_solver.exe";
+    #else
+        fs::path solver_bin = fs::path("scripts") / "dist" / "trajectory_guidance_solver" / "trajectory_guidance_solver";
+    #endif
+
+    Guidance guidance(solver_bin, "guidance");
     Eigen::VectorXd curr_solver_state(11);
 
     double liquid_mass = structure.get_fuel_mass() * (1 * structure.get_fuel_mass());
@@ -128,10 +137,10 @@ int main() {
 
     while (!ge.graphics_should_close()) {
 
-        if (time - last_call_guidance >= 1.0) {
+        if (real_time - last_call_guidance >= 1.0) {
             if (!guidance.is_solver_running()) {
                 guidance.trigger_asynchronous_solve(curr_solver_state);
-                last_call_guidance = time;
+                last_call_guidance = real_time;
             }
         }
 
@@ -155,6 +164,7 @@ int main() {
         }
 
         accumulator_bucket += frame_length;
+        real_time += frame_length;
 
         while (accumulator_bucket >= deltatime) {
 
